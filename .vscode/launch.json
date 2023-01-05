@@ -5,7 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Client",
+            "name": "Client-Linux",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "client/client.go"
+        },
+        {
+            "name": "Client-windows",
             "type": "go",
             "request": "launch",
             "mode": "auto",

@@ -101,6 +101,15 @@ func (smp *ShmProvider) signalevent(event uintptr) {
 	procSetEvent.Call(event)
 }
 
+func (smp *ShmProvider) closeevents() {
+	if smp.rdevent != 0 {
+		syscall.CloseHandle(syscall.Handle(smp.rdevent))
+	}
+	if smp.wrevent != 0 {
+		syscall.CloseHandle(syscall.Handle(smp.wrevent))
+	}
+}
+
 // Creates a file mapping with the specified name and size, and returns a handle to the file mapping.
 func (smp *ShmProvider) Create(name string, len uint64) error {
 
@@ -195,6 +204,7 @@ func (smp *ShmProvider) Open(name string) error {
 }
 
 func (smp *ShmProvider) Close() error {
+	smp.closeevents()
 	defer syscall.CloseHandle(syscall.Handle(smp.handle))
 	r1, _, err := procUnmapViewOfFile.Call(uintptr(unsafe.Pointer(&smp.data[0])))
 	if err != syscall.Errno(0) {

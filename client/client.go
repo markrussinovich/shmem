@@ -30,6 +30,5 @@ func main() {
 		data := make([]byte, 256)
 		len, _ := shm.Read(data)
 		fmt.Println("Read from shared memory: " + string(data[:len]))
-
 	}
 }

@@ -6,8 +6,10 @@ import (
 )
 
 type ShmProvider struct {
+	name    string
 	data    []byte
 	handle  uintptr
+	event   uintptr
 	wrevent uintptr
 	rdevent uintptr
 }
