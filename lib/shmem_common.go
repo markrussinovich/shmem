@@ -1,39 +1,91 @@
 package shmlib
 
 import (
-	"encoding/binary"
-	"syscall"
+	"bytes"
+	"context"
+	"encoding/gob"
+	"fmt"
 )
 
-type ShmProvider struct {
-	name    string
-	data    []byte
-	handle  uintptr
-	event   uintptr
-	wrevent uintptr
-	rdevent uintptr
+func (smp *ShmProvider) initEncoderDecoder(ptr []byte) {
+	smp.buffer = *bytes.NewBuffer(smp.ptr)
+	smp.encoder = gob.NewEncoder(&smp.buffer)
+	smp.decoder = gob.NewDecoder(&smp.buffer)
+	//smp.buffer.Reset()
 }
 
-// implements io.Reader
-// Reads a length followed by a byte array from the shared memory.
-func (smp *ShmProvider) Read(p []byte) (n int, err error) {
+// Waits for messages or cancellation
+func (smp *ShmProvider) Receive(ctx context.Context,
+	OnNewMessage func([]byte, map[string]string) ([]byte, int, string)) (err error) {
 
-	smp.waitforevent(smp.wrevent)
-	var length uint32 = binary.BigEndian.Uint32(smp.data[:4])
-	len := copy(p, smp.data[4:4+length])
-	smp.signalevent(smp.rdevent)
-	return len, nil
-}
+	// loop forever
+	for {
 
-// implements io.Writer
-// Writes a length followed by a byte array to the shared memory.
-func (smp *ShmProvider) Write(p []byte) (n int, err error) {
-	if len(p)+4 > len(smp.data) {
-		return 0, syscall.EINVAL
+		// Wait for a message
+		smp.waitforevent(smp.wrevent)
+
+		// Process the message
+		var requestData []byte
+		err := smp.decoder.Decode(&requestData)
+		if err != nil {
+			fmt.Println(err)
+		}
+		var requestMetadata map[string]string
+		smp.decoder.Decode(&requestMetadata)
+		responseData, status, statusMessage := OnNewMessage(requestData, requestMetadata)
+
+		// Encode the response
+		smp.buffer.Reset()
+		smp.encoder.Encode(responseData)
+		smp.encoder.Encode(status)
+		smp.encoder.Encode(statusMessage)
+
+		// Signal that we have read the data
+		smp.signalevent(smp.rdevent)
 	}
-	binary.BigEndian.PutUint32(smp.data[:4], uint32(len(p)))
-	len := copy(smp.data[4:], p[:])
+}
+
+// Send function
+func (smp *ShmProvider) Send(ctx context.Context, data []byte,
+	requestMetadata map[string]string) ([]byte, int, string) {
+
+	// Encode the request data and metadata
+	smp.buffer.Reset()
+	err := smp.encoder.Encode(data)
+	if err != nil {
+
+		return nil, 400, err.Error()
+	}
+	err = smp.encoder.Encode(requestMetadata)
+	if err != nil {
+
+		return nil, 400, err.Error()
+	}
+
+	// Signal the reader and wait for response
 	smp.signalevent(smp.wrevent)
 	smp.waitforevent(smp.rdevent)
-	return len, nil
+
+	// Read the response
+	var responseData []byte
+	err = smp.decoder.Decode(&responseData)
+	if err != nil {
+
+		return nil, 400, err.Error()
+	}
+	var status int
+	err = smp.decoder.Decode(&status)
+	if err != nil {
+
+		return nil, 400, err.Error()
+	}
+	var statusMessage string
+	err = smp.decoder.Decode(&statusMessage)
+	if err != nil {
+
+		return nil, 400, err.Error()
+	}
+
+	// Return the response
+	return responseData, status, statusMessage
 }

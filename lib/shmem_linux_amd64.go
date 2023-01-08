@@ -1,10 +1,26 @@
 package shmlib
 
 import (
+	"bytes"
+	"context"
+	"encoding/gob"
 	"os"
 	"syscall"
 	"unsafe"
 )
+
+type ShmProvider struct {
+	name string
+
+	ptr     []byte
+	buffer  bytes.Buffer
+	encoder *gob.Encoder
+	decoder *gob.Decoder
+
+	event   uintptr
+	rdevent uintptr
+	wrevent uintptr
+}
 
 const (
 	IPC_CREAT int = 01000
@@ -79,7 +95,7 @@ func (smp *ShmProvider) waitforevent(event uintptr) error {
 	return nil
 }
 
-func (smp *ShmProvider) Create(name string, len uint64) error {
+func (smp *ShmProvider) Dial(ctx context.Context, name string, len uint64) error {
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -87,7 +103,7 @@ func (smp *ShmProvider) Create(name string, len uint64) error {
 	defer f.Close()
 
 	f.Truncate(int64(len))
-	ptr, err := syscall.Mmap(int(f.Fd()), 0, int(len), syscall.PROT_WRITE, syscall.MAP_SHARED)
+	ptr, err := syscall.Mmap(int(f.Fd()), 0, int(len), syscall.PROT_WRITE|syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
 
 		return err
@@ -99,12 +115,13 @@ func (smp *ShmProvider) Create(name string, len uint64) error {
 		return err
 	}
 	smp.name = name
-	smp.data = ptr
+	smp.ptr = ptr
+	smp.initEncoderDecoder(smp.ptr)
 	return nil
 }
 
-func (smp *ShmProvider) Open(name string) error {
-	f, err := os.Open(name)
+func (smp *ShmProvider) Listen(ctx context.Context, name string) error {
+	f, err := os.OpenFile(name, os.O_RDWR, 0)
 	if err != nil {
 		return err
 	}
@@ -115,7 +132,7 @@ func (smp *ShmProvider) Open(name string) error {
 		return err
 	}
 
-	ptr, err := syscall.Mmap(int(f.Fd()), 0, int(stat.Size()), syscall.PROT_READ, syscall.MAP_SHARED)
+	ptr, err := syscall.Mmap(int(f.Fd()), 0, int(stat.Size()), syscall.PROT_WRITE|syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
 
 		return err
@@ -126,19 +143,21 @@ func (smp *ShmProvider) Open(name string) error {
 
 		return err
 	}
-	smp.data = ptr
+	smp.ptr = ptr
+	smp.initEncoderDecoder(smp.ptr)
 	return nil
 }
 
 func (smp *ShmProvider) Close() error {
-	_, _, _ = syscall.Syscall(syscall.SYS_SEMCTL, uintptr(smp.event),
-		uintptr(0), uintptr(IPC_RMID))
-	if smp.data != nil {
+	if smp.ptr != nil {
 
-		syscall.Munmap(smp.data)
+		syscall.Munmap(smp.ptr)
 	}
 	if smp.name != "" {
 
+		// this is the server if we created the file and recorded its name
+		_, _, _ = syscall.Syscall(syscall.SYS_SEMCTL, uintptr(smp.event),
+			uintptr(0), uintptr(IPC_RMID))
 		syscall.Unlink(smp.name)
 	}
 	return nil

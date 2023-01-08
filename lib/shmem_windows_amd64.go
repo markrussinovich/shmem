@@ -1,10 +1,24 @@
 package shmlib
 
 import (
+	"bytes"
+	"context"
+	"encoding/gob"
 	"syscall"
 	"unicode/utf16"
 	"unsafe"
 )
+
+type ShmProvider struct {
+	ptr     []byte
+	buffer  bytes.Buffer
+	encoder *gob.Encoder
+	decoder *gob.Decoder
+
+	handle  uintptr
+	wrevent uintptr
+	rdevent uintptr
+}
 
 var (
 	kernel32DLL            = syscall.NewLazyDLL("kernel32.dll")
@@ -111,7 +125,7 @@ func (smp *ShmProvider) closeevents() {
 }
 
 // Creates a file mapping with the specified name and size, and returns a handle to the file mapping.
-func (smp *ShmProvider) Create(name string, len uint64) error {
+func (smp *ShmProvider) Dial(ctx context.Context, name string, len uint64) error {
 
 	// Create the file mapping
 	r1, _, err := procCreateFileMappingA.Call(
@@ -152,12 +166,13 @@ func (smp *ShmProvider) Create(name string, len uint64) error {
 		return err
 	}
 	smp.handle = r1
-	smp.data = unsafe.Slice((*byte)(unsafe.Pointer(ptr)), len)
+	smp.ptr = unsafe.Slice((*byte)(unsafe.Pointer(ptr)), len)
+	smp.initEncoderDecoder(smp.ptr)
 	return nil
 }
 
 // Opens a file mapping with the specified name, and returns a handle to the file mapping.
-func (smp *ShmProvider) Open(name string) error {
+func (smp *ShmProvider) Listen(ctx context.Context, name string) error {
 	r1, _, err := procOpenFileMappingA.Call(
 		uintptr(syscall.FILE_MAP_READ|syscall.FILE_MAP_WRITE),
 		uintptr(0),
@@ -199,14 +214,15 @@ func (smp *ShmProvider) Open(name string) error {
 		return err
 	}
 	smp.handle = r1
-	smp.data = unsafe.Slice((*byte)(unsafe.Pointer(ptr)), int(memInfo.RegionSize))
+	smp.ptr = unsafe.Slice((*byte)(unsafe.Pointer(ptr)), uint64(memInfo.RegionSize))
+	smp.initEncoderDecoder(smp.ptr)
 	return nil
 }
 
 func (smp *ShmProvider) Close() error {
 	smp.closeevents()
 	defer syscall.CloseHandle(syscall.Handle(smp.handle))
-	r1, _, err := procUnmapViewOfFile.Call(uintptr(unsafe.Pointer(&smp.data[0])))
+	r1, _, err := procUnmapViewOfFile.Call(uintptr(unsafe.Pointer(&smp.ptr[0])))
 	if err != syscall.Errno(0) {
 		return err
 	}
