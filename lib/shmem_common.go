@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	"fmt"
 )
 
 func (smp *ShmProvider) initEncoderDecoder(ptr []byte) {
@@ -19,17 +18,20 @@ func (smp *ShmProvider) Receive(ctx context.Context,
 	OnNewMessage func([]byte, map[string]string) ([]byte, int, string)) (err error) {
 
 	// loop forever
-	for {
+	for !smp.closed {
 
 		// Wait for a message
 		smp.waitforevent(smp.wrevent)
+		smp.bufmu.Lock()
+		if smp.closed {
+
+			smp.bufmu.Unlock()
+			break
+		}
 
 		// Process the message
 		var requestData []byte
-		err := smp.decoder.Decode(&requestData)
-		if err != nil {
-			fmt.Println(err)
-		}
+		smp.decoder.Decode(&requestData)
 		var requestMetadata map[string]string
 		smp.decoder.Decode(&requestMetadata)
 		responseData, status, statusMessage := OnNewMessage(requestData, requestMetadata)
@@ -42,7 +44,9 @@ func (smp *ShmProvider) Receive(ctx context.Context,
 
 		// Signal that we have read the data
 		smp.signalevent(smp.rdevent)
+		smp.bufmu.Unlock()
 	}
+	return nil
 }
 
 // Send function

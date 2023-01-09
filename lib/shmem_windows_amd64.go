@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"sync"
 	"syscall"
 	"unicode/utf16"
 	"unsafe"
 )
 
 type ShmProvider struct {
+	closed  bool
+	bufmu   sync.Mutex
 	ptr     []byte
 	buffer  bytes.Buffer
 	encoder *gob.Encoder
@@ -219,8 +222,18 @@ func (smp *ShmProvider) Listen(ctx context.Context, name string) error {
 	return nil
 }
 
-func (smp *ShmProvider) Close() error {
-	smp.closeevents()
+func (smp *ShmProvider) Close(wg *sync.WaitGroup) error {
+
+	// signal waiting listening goroutine if there is one
+	if wg != nil {
+		smp.closed = true
+		smp.signalevent(smp.wrevent)
+		wg.Wait()
+	}
+	smp.bufmu.Lock()
+	defer smp.bufmu.Unlock()
+
+	// cleanup
 	defer syscall.CloseHandle(syscall.Handle(smp.handle))
 	r1, _, err := procUnmapViewOfFile.Call(uintptr(unsafe.Pointer(&smp.ptr[0])))
 	if err != syscall.Errno(0) {
@@ -229,5 +242,6 @@ func (smp *ShmProvider) Close() error {
 	if r1 == 0 {
 		return syscall.EINVAL
 	}
+	smp.closeevents()
 	return nil
 }

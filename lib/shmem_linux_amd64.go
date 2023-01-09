@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 	"os"
+	"sync"
 	"syscall"
 	"unsafe"
 )
@@ -12,6 +13,8 @@ import (
 type ShmProvider struct {
 	name string
 
+	closed  bool
+	bufmu   sync.Mutex
 	ptr     []byte
 	buffer  bytes.Buffer
 	encoder *gob.Encoder
@@ -111,7 +114,7 @@ func (smp *ShmProvider) Dial(ctx context.Context, name string, len uint64) error
 	err = smp.openevents(name, IPC_CREAT|0600)
 	if err != nil {
 
-		smp.Close()
+		smp.Close(nil)
 		return err
 	}
 	smp.name = name
@@ -148,7 +151,17 @@ func (smp *ShmProvider) Listen(ctx context.Context, name string) error {
 	return nil
 }
 
-func (smp *ShmProvider) Close() error {
+func (smp *ShmProvider) Close(wg *sync.WaitGroup) error {
+
+	// signal waiting listening goroutine if there is one
+	if wg != nil {
+		smp.closed = true
+		smp.signalevent(smp.wrevent)
+		wg.Wait()
+	}
+	smp.bufmu.Lock()
+	defer smp.bufmu.Unlock()
+
 	if smp.ptr != nil {
 
 		syscall.Munmap(smp.ptr)

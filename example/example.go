@@ -5,6 +5,7 @@ import (
 	"fmt"
 	shmlib "sharedmemoryipc/lib"
 	"strconv"
+	"sync"
 )
 
 var msgIndex int
@@ -16,6 +17,38 @@ func onNewMessage(data []byte, requestMetadata map[string]string) ([]byte, int, 
 	fmt.Printf("[%d] Write to client: %s, 200, OK\n\n", msgIndex, clientMessage)
 	msgIndex++
 	return []byte(clientMessage), 200, "OK"
+}
+
+func serverRoutine(ctx context.Context, shm *shmlib.ShmProvider) {
+	fmt.Printf("[server]\n\n")
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		shm.Receive(ctx, onNewMessage)
+		wg.Done()
+	}()
+
+	fmt.Println("Press Enter to terminate.")
+	fmt.Scanln()
+	shm.Close(&wg)
+}
+
+func clientRoutine(ctx context.Context, shm *shmlib.ShmProvider) {
+	metadata := map[string]string{
+		"key1": "value1",
+		"key2": "value2",
+	}
+
+	fmt.Printf("[client]\n\n")
+	serverMessage := "Hello, server!"
+	fmt.Println("Write to server: " + serverMessage)
+
+	// Send the message to the server
+	response, status, statusMessage := shm.Send(ctx, []byte(serverMessage), metadata)
+	fmt.Println("Response from server: " + string(response) + ", " + strconv.Itoa(status) + ", " + statusMessage)
+
+	shm.Close(nil)
 }
 
 // main is the main function
@@ -37,27 +70,14 @@ func main() {
 		}
 		isserver = true
 	}
-	defer shm.Close()
 
 	// write to or read from shared memory
 	if isserver {
 
-		fmt.Printf("[server]\n\n")
-		shm.Receive(ctx, onNewMessage)
+		serverRoutine(ctx, &shm)
 
 	} else {
 
-		metadata := map[string]string{
-			"key1": "value1",
-			"key2": "value2",
-		}
-
-		fmt.Printf("[client]\n\n")
-		serverMessage := "Hello, server!"
-		fmt.Println("Write to server: " + serverMessage)
-
-		// Send the message to the server
-		response, status, statusMessage := shm.Send(ctx, []byte(serverMessage), metadata)
-		fmt.Println("Response from server: " + string(response) + ", " + strconv.Itoa(status) + ", " + statusMessage)
+		clientRoutine(ctx, &shm)
 	}
 }
