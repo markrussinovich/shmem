@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option go_package = "sharedmemoryipc/proto";
+
+package shmemlib;
+
+message ShmemRequestMessage {
+  bytes data = 1;
+  map<string, string> metadata = 2;
+}
+
+message ShmemResponseMessage {
+    bytes data = 1;
+    int32 status = 2;
+    string statusMessage = 3;
+  }

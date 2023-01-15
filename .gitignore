@@ -1,2 +1,5 @@
 example/__debug_bin
 example/shmipc
+example/__debug_bin.exe
+proto/shmem.pb.go
+shmipc

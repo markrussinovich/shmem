@@ -9,14 +9,14 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "example/example.go"
+            "program": "example/main.go"
         },
         {
             "name": "Client-windows",
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "example\\example.go"
+            "program": "example\\main.go"
         }
     ]
 }
