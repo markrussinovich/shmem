@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package shmemlib;
+
+option go_package = "../lib";
+
+message Request {
+    string data = 1;
+
+}
+
+message Response {
+    string  data = 1;
+    int32   code = 2;
+    string  error = 3;
+}

@@ -115,8 +115,8 @@ func (smp *ShmProvider) Dial(ctx context.Context, name string, len uint64) error
 		return err
 	}
 	smp.name = name
-	smp.ptr = ptr
-	smp.initEncoderDecoder(smp.ptr)
+	smp.ipcBuffer = ptr
+	smp.initEncoderDecoder(smp.ipcBuffer)
 	return nil
 }
 
@@ -143,8 +143,8 @@ func (smp *ShmProvider) Listen(ctx context.Context, name string) error {
 
 		return err
 	}
-	smp.ptr = ptr
-	smp.initEncoderDecoder(smp.ptr)
+	smp.ipcBuffer = ptr
+	smp.initEncoderDecoder(smp.ipcBuffer)
 	return nil
 }
 
@@ -159,9 +159,9 @@ func (smp *ShmProvider) Close(wg *sync.WaitGroup) error {
 	smp.bufmu.Lock()
 	defer smp.bufmu.Unlock()
 
-	if smp.ptr != nil {
+	if smp.ipcBuffer != nil {
 
-		syscall.Munmap(smp.ptr)
+		syscall.Munmap(smp.ipcBuffer)
 	}
 	if smp.name != "" {
 

@@ -12,7 +12,7 @@ import (
 
 func (smp *ShmProvider) initEncoderDecoder(ptr []byte) {
 	// leave 4 bytes for the length of the message
-	smp.buffer = *memory.NewBufferBytes(smp.ptr[4:])
+	smp.buffer = *memory.NewBufferBytes(smp.ipcBuffer[4:])
 }
 
 // Waits for messages or cancellation
@@ -32,7 +32,7 @@ func (smp *ShmProvider) Receive(ctx context.Context,
 		}
 
 		// Process the message
-		encodingLen := binary.LittleEndian.Uint32(smp.ptr[0:])
+		encodingLen := binary.LittleEndian.Uint32(smp.ipcBuffer[0:])
 		smp.buffer.ResizeNoShrink(int(encodingLen))
 		request := &pb.ShmemRequestMessage{}
 		err = proto.Unmarshal(smp.buffer.Bytes(), request)
@@ -53,8 +53,8 @@ func (smp *ShmProvider) Receive(ctx context.Context,
 			return err
 		}
 		encodingLen = uint32(len(encoding))
-		binary.LittleEndian.PutUint32(smp.ptr, uint32(encodingLen))
-		copy(smp.ptr[4:], encoding)
+		binary.LittleEndian.PutUint32(smp.ipcBuffer, uint32(encodingLen))
+		copy(smp.ipcBuffer[4:], encoding)
 
 		// Signal that we have read the data
 		smp.signalevent(smp.rdevent)
@@ -76,8 +76,8 @@ func (smp *ShmProvider) Send(ctx context.Context, data []byte,
 		return nil, 400, err.Error()
 	}
 	encodingLen := uint32(len(encoding))
-	binary.LittleEndian.PutUint32(smp.ptr, uint32(encodingLen))
-	copy(smp.ptr[4:], encoding)
+	binary.LittleEndian.PutUint32(smp.ipcBuffer, uint32(encodingLen))
+	copy(smp.ipcBuffer[4:], encoding)
 
 	// Signal the reader and wait for response
 	smp.signalevent(smp.wrevent)
@@ -85,7 +85,7 @@ func (smp *ShmProvider) Send(ctx context.Context, data []byte,
 
 	// Read the response
 	response := &pb.ShmemResponseMessage{}
-	encodingLen = binary.LittleEndian.Uint32(smp.ptr[0:])
+	encodingLen = binary.LittleEndian.Uint32(smp.ipcBuffer[0:])
 	smp.buffer.Resize(int(encodingLen))
 	err = proto.Unmarshal(smp.buffer.Bytes(), response)
 	if err != nil {
