@@ -20,14 +20,17 @@ func (smp *ShmProvider) Receive(ctx context.Context,
 	OnNewMessage func([]byte, map[string]string) ([]byte, int, string)) (err error) {
 
 	// loop forever
+	smp.bufmu.Lock()
+	defer func() {
+		smp.bufmu.Unlock()
+	}()
 	for !smp.closed {
 
 		// Wait for a message
+		smp.bufmu.Unlock()
 		smp.waitforevent(smp.wrevent)
 		smp.bufmu.Lock()
 		if smp.closed {
-
-			smp.bufmu.Unlock()
 			break
 		}
 
@@ -37,8 +40,6 @@ func (smp *ShmProvider) Receive(ctx context.Context,
 		request := &pb.ShmemRequestMessage{}
 		err = proto.Unmarshal(smp.buffer.Bytes(), request)
 		if err != nil {
-
-			smp.bufmu.Unlock()
 			return err
 		}
 		responseData, status, statusMessage := OnNewMessage(request.GetData(), request.GetMetadata())
@@ -48,8 +49,6 @@ func (smp *ShmProvider) Receive(ctx context.Context,
 		smp.buffer.ResizeNoShrink(0)
 		encoding, err := proto.Marshal(response)
 		if err != nil {
-
-			smp.bufmu.Unlock()
 			return err
 		}
 		encodingLen = uint32(len(encoding))
@@ -58,7 +57,6 @@ func (smp *ShmProvider) Receive(ctx context.Context,
 
 		// Signal that we have read the data
 		smp.signalevent(smp.rdevent)
-		smp.bufmu.Unlock()
 	}
 	return nil
 }

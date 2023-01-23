@@ -70,12 +70,11 @@ func (smp *ShmProvider) openevents(name string) error {
 	smp.rdevent = uintptr(r1)
 	r1, err = windows.OpenEvent(windows.SYNCHRONIZE|windows.EVENT_MODIFY_STATE,
 		false, UTF16PtrFromString(name+eventResponseReadySuffix))
-	if err != syscall.Errno(0) {
+	if err != nil {
 		return err
 	}
 	smp.wrevent = uintptr(r1)
-	return syscall.Errno(0)
-
+	return nil
 }
 
 func (smp *ShmProvider) waitforevent(event uintptr) {
