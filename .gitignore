@@ -3,3 +3,5 @@ example/shmipc
 example/__debug_bin.exe
 proto/shmem.pb.go
 shmipc
+shmemlib/shmemlib.test.exe
+shmemlib/cpu.prof
