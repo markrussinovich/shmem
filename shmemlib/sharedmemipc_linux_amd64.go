@@ -2,20 +2,21 @@ package shmemlib
 
 import (
 	"context"
-	memory "github.com/apache/arrow/go/arrow/memory"
 	"os"
 	"sync"
 	"syscall"
 	"unsafe"
+
+	memory "github.com/apache/arrow/go/arrow/memory"
 )
 
 type ShmProvider struct {
 	name string
 
-	closed bool
-	bufmu  sync.Mutex
-	ptr    []byte
-	buffer memory.Buffer
+	closed    bool
+	bufmu     sync.Mutex
+	ipcBuffer []byte
+	buffer    memory.Buffer
 
 	event   uintptr
 	rdevent uintptr
@@ -51,6 +52,34 @@ func Ftok(name string, projectid uint8) (int, error) {
 		return 0, err
 	}
 	return int(uint(projectid&0xff)<<24 | uint((stat.Dev&0xff)<<16) | (uint(stat.Ino) & 0xffff)), nil
+}
+
+func (smp *ShmProvider) initevents() error {
+	_, _, err := syscall.Syscall6(
+		uintptr(syscall.SYS_SEMCTL),
+		uintptr(smp.event),
+		uintptr(0),
+		uintptr(SETVAL),
+		uintptr(0),
+		uintptr(0),
+		uintptr(0))
+	if err != syscall.Errno(0) {
+
+		return err
+	}
+	_, _, err = syscall.Syscall6(
+		uintptr(syscall.SYS_SEMCTL),
+		uintptr(smp.event),
+		uintptr(1),
+		uintptr(SETVAL),
+		uintptr(0),
+		uintptr(0),
+		uintptr(0))
+	if err != syscall.Errno(0) {
+
+		return err
+	}
+	return nil
 }
 
 func (smp *ShmProvider) openevents(name string, flag int) error {
@@ -143,6 +172,7 @@ func (smp *ShmProvider) Listen(ctx context.Context, name string) error {
 
 		return err
 	}
+	smp.initevents()
 	smp.ipcBuffer = ptr
 	smp.initEncoderDecoder(smp.ipcBuffer)
 	return nil

@@ -74,6 +74,7 @@ func Test(t *testing.T) {
 	go func() {
 
 		shmServer.Receive(ctx, onNewMessage)
+		shmServer.Close(nil)
 		wg.Done()
 	}()
 
@@ -85,8 +86,8 @@ func Test(t *testing.T) {
 		data, status, statusMessage := shmClient.Send(ctx, []byte(fmt.Sprintf("Hello, server #%d", i)), metadata)
 		fmt.Printf("Read from server: %s, %d, %s\n", string(data), status, statusMessage)
 	}
+	shmServer.Close(&wg)
 	shmClient.Close(nil)
-	shmServer.Close(nil)
 }
 
 var msgIndex = 0
