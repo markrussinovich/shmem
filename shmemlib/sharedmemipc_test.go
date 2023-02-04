@@ -8,9 +8,6 @@ import (
 )
 
 func BenchmarkTest(b *testing.B) {
-	fmt.Print("Shared memory IPC example")
-	// Start the service provider
-
 	ctx := context.Background()
 	const name = "sharedmemipc"
 	// First, the client creates the IPC mechanism
@@ -35,17 +32,16 @@ func BenchmarkTest(b *testing.B) {
 		shmServer.Receive(ctx, onBenchmarkNewMessage)
 		wg.Done()
 	}()
-
+	metadata := map[string]string{
+		"key1": "value1",
+		"key2": "value2",
+	}
 	for i := 0; i < b.N; i++ {
-		metadata := map[string]string{
-			"key1": "value1",
-			"key2": "value2",
-		}
 		_, _, _ = shmClient.Send(ctx, []byte(fmt.Sprintf("Hello, server #%d", i)), metadata)
 	}
-	fmt.Println("MessageIndex: ", msgIndex)
+	shmServer.Close(&wg)
+	wg.Wait()
 	shmClient.Close(nil)
-	shmServer.Close(nil)
 }
 
 func Test(t *testing.T) {
@@ -74,7 +70,6 @@ func Test(t *testing.T) {
 	go func() {
 
 		shmServer.Receive(ctx, onNewMessage)
-		shmServer.Close(nil)
 		wg.Done()
 	}()
 
@@ -87,6 +82,7 @@ func Test(t *testing.T) {
 		fmt.Printf("Read from server: %s, %d, %s\n", string(data), status, statusMessage)
 	}
 	shmServer.Close(&wg)
+	wg.Wait()
 	shmClient.Close(nil)
 }
 
