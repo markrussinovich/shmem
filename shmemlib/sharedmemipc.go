@@ -10,6 +10,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	eventRequestReadySuffix  = "-RequestReadyEvent"
+	eventResponseReadySuffix = "-ResponseReadyEvent"
+)
+
 func (smp *ShmProvider) initEncoderDecoder(ptr []byte) {
 	// leave 4 bytes for the length of the message
 	smp.buffer = *memory.NewBufferBytes(smp.ipcBuffer[4:])
