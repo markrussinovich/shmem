@@ -13,7 +13,9 @@ import (
 )
 
 const (
-	zeroHandle = windows.Handle(0)
+	eventRequestReadySuffix  = "-RequestReadyEvent"
+	eventResponseReadySuffix = "-ResponseReadyEvent"
+	zeroHandle               = windows.Handle(0)
 )
 
 type ShmProvider struct {
