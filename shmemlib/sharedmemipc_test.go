@@ -80,12 +80,24 @@ func Test(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-
+		defer func() {
+			if r := recover(); r != nil {
+				// function panicked
+				if err, ok := r.(error); ok {
+					fmt.Println(err)
+				} else {
+					fmt.Errorf("Panic: %v", r)
+				}
+			} else {
+				// the goroutine func returned
+				fmt.Println("Goroutine returned normally")
+			}
+		}()
 		shmServer.Receive(ctx, onNewMessage)
 		wg.Done()
 	}()
 
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 1000000; i++ {
 		metadata := map[string]string{
 			"key1": "value1",
 			"key2": "value2",

@@ -42,7 +42,7 @@ func (smp *ShmProvider) Receive(ctx context.Context,
 		}
 
 		// Were we woken up prematurely?
-		index := binary.LittleEndian.Uint32(smp.ipcBuffer[ENCLENOFFSET:])
+		index := binary.LittleEndian.Uint32(smp.ipcBuffer[INDEXOFFSET:])
 		if index == 1 {
 			continue
 		}
